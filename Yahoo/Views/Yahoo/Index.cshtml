@@ -1,0 +1,41 @@
+﻿
+@model Yahoo.ViewModel.StorageVM
+@{
+    ViewData["Title"] = "Index";
+}
+
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Symbol</th>
+            <th>Company name</th>
+            <th>City</th>
+            <th>State</th>
+            <th>Employees</th>
+            <th>Open price</th>
+            <th>Close price</th>
+            <th>Market cap</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+
+        @foreach (var t in Model.podaci)
+        {
+            <tr>
+
+                <td>@t.symbol</td>
+                <td>@t.CompanyName</td>
+                <td>@t.City</td>
+                <td>@t.State</td>
+                <td>@t.numberOfEmployees</td>
+                <td>@t.OpenPrice</td>
+                <td>@t.ClosePrice</td>
+                <td>@t.MarketCap</td>
+                <td>@t.Datum</td>
+            </tr>
+        }
+
+    </tbody>
+</table>
