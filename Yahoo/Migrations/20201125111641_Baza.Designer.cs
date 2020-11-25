@@ -10,8 +10,8 @@ using Yahoo.EF;
 namespace Yahoo.Migrations
 {
     [DbContext(typeof(MyContext))]
-    [Migration("20201124015141_Database")]
-    partial class Database
+    [Migration("20201125111641_Baza")]
+    partial class Baza
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
@@ -20,6 +20,32 @@ namespace Yahoo.Migrations
                 .UseIdentityColumns()
                 .HasAnnotation("Relational:MaxIdentifierLength", 128)
                 .HasAnnotation("ProductVersion", "5.0.0");
+
+            modelBuilder.Entity("Yahoo.Models.FinanceStorageDB", b =>
+                {
+                    b.Property<int>("id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .UseIdentityColumn();
+
+                    b.Property<decimal>("ClosePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Datum")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("OpenPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("StorageDBId")
+                        .HasColumnType("int");
+
+                    b.HasKey("id");
+
+                    b.HasIndex("StorageDBId");
+
+                    b.ToTable("FinanceStorageDB");
+                });
 
             modelBuilder.Entity("Yahoo.Models.StorageDB", b =>
                 {
@@ -31,20 +57,11 @@ namespace Yahoo.Migrations
                     b.Property<string>("City")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<decimal>("ClosePrice")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<string>("CompanyName")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("Datum")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("MarketCap")
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("OpenPrice")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("State")
                         .HasColumnType("nvarchar(max)");
@@ -61,6 +78,17 @@ namespace Yahoo.Migrations
                     b.HasKey("ID");
 
                     b.ToTable("StorageDB");
+                });
+
+            modelBuilder.Entity("Yahoo.Models.FinanceStorageDB", b =>
+                {
+                    b.HasOne("Yahoo.Models.StorageDB", "StorageDB")
+                        .WithMany()
+                        .HasForeignKey("StorageDBId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StorageDB");
                 });
 #pragma warning restore 612, 618
         }

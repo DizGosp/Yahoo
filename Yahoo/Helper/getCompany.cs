@@ -10,26 +10,37 @@ namespace Yahoo.Helper
     public class getCompany
     {
         [DataContract]
+        public class Quote
+        {
+            [DataMember]
+            public string shortName { get; set; }
+            [DataMember]
+            public string symbol { get; set; }
+        }
+
+            [DataContract]
         public class Result
         {
             [DataMember]
-            public string symbol { get; set; }
-            [DataMember]
-            public string shortName { get; set; }
+            public List<Quote> quotes { get; set; }
+         
         }
 
         [DataContract]
-        public class MarketSummaryAndSparkResponse
+        public class Finance
         {
             [DataMember]
             public List<Result> result { get; set; }
+            [DataMember]
+            public object error { get; set; }
         }
 
         [DataContract]
         public class Root
         {
             [DataMember]
-            public MarketSummaryAndSparkResponse marketSummaryAndSparkResponse { get; set; }
+            public Finance finance { get; set; }
         }
+
     }
 }

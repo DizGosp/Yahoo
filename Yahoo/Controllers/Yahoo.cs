@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Yahoo.EF;
 using Yahoo.Models;
@@ -16,7 +18,7 @@ namespace Yahoo.Controllers
 {
     public class Yahoo : Controller
     {
-        
+
         private MyContext _db;
         [ActivatorUtilitiesConstructor]
         public Yahoo(MyContext context)
@@ -26,26 +28,15 @@ namespace Yahoo.Controllers
 
         public async Task<IActionResult> IndexAsync(DateTime datum)
         {
+            if (!_db.StorageDB.Any())
+            {
+                await geListTickersAsync();
+            }
 
-            //Dohvatanje liste symbola i kompanija u EU regiji
-            var client = new HttpClient();
-            var request = new HttpRequestMessage
+            List<Storage> podaci = new List<Storage>();
+            if (!_db.FinanceStorageDB.Any(x => x.Datum.Year == datum.Year && x.Datum.Month == datum.Month && x.Datum.Day == datum.Day))
             {
-                Method = HttpMethod.Get,
-                RequestUri = new Uri("https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/v2/get-summary"),
-                Headers =
-                    {
-                        { "x-rapidapi-key", "59cd2485cemshf72578d1ef3ac2ap106076jsncc6280cf1332" },
-                        { "x-rapidapi-host", "apidojo-yahoo-finance-v1.p.rapidapi.com" },
-                    },
-            };
-            using (var response = await client.SendAsync(request))
-            {
-                response.EnsureSuccessStatusCode();
-                var body = await response.Content.ReadAsStringAsync();
-                Root financije = JSONSerializerWrapper.Deserialize<Root>(body); //Convertovanje JSona u C#
-                List<Storage> podaci = new List<Storage>();
-                foreach (var item in financije.marketSummaryAndSparkResponse.result)
+                foreach (var item in _db.StorageDB)
                 {
                     try
                     {
@@ -53,101 +44,123 @@ namespace Yahoo.Controllers
                         var h = await YahooFinanceApi.Yahoo.GetHistoricalAsync(item.symbol, new DateTime(datum.Year, datum.Month, datum.Day), new DateTime(datum.Year, datum.Month, datum.Day).AddDays(1), Period.Daily);
                         foreach (var candle in h)
                         {
-                            podaci.Add(new Storage()
+                            podaci.Add(new Storage 
                             {
-                                symbol = item.symbol,
-                                CompanyName = item.shortName,
-                                OpenPrice = candle.Open,
-                                ClosePrice = candle.Close,
-                                Datum = candle.DateTime
+                                OpenPrice=candle.Open,
+                                ClosePrice=candle.Close,
+                                Datum=candle.DateTime,
+                                ID=item.ID
                             });
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                    }
 
+                    }
                 }
 
-                //Dohvatanje detaljnih podataka za novonastalu listu
-                if (podaci != null)
+                for (int i = 0; i < podaci.Count; i++)
                 {
-                    for (int i = 0; i < podaci.Count; i++)
+                    FinanceStorageDB f = new FinanceStorageDB
                     {
+                        OpenPrice = podaci[i].OpenPrice,
+                        ClosePrice = podaci[i].ClosePrice,
+                        Datum = podaci[i].Datum,
+                        StorageDBId = podaci[i].ID
+                    };
+                    _db.FinanceStorageDB.Add(f);
+                    _db.SaveChanges();
+                }
+
+            }
+
+            //Dohvatanje podataka iz baze podataka
+            StorageVM model = new StorageVM();
+
+            model.podaci = _db.FinanceStorageDB
+           .Include(i => i.StorageDB)
+           .Where(i => i.Datum.Year == datum.Year && i.Datum.Month == datum.Month && i.Datum.Day == datum.Day)
+          .Select(n => new StorageVM.Rows
+          {
+              symbol = n.StorageDB.symbol,
+              CompanyName = n.StorageDB.CompanyName,
+              numberOfEmployees = n.StorageDB.numberOfEmployees,
+              City = n.StorageDB.City,
+              State = n.StorageDB.State,
+              MarketCap=n.StorageDB.MarketCap,
+              ClosePrice=n.ClosePrice,
+              OpenPrice=n.OpenPrice,
+              Datum=n.Datum
+          })
+          .ToList();
+
+            return View(model);
+        }
+
+        private async Task geListTickersAsync()
+        {
+            //Dohvatanje liste symbola i kompanija u EU regiji
+            var client = new HttpClient();
+            var request = new HttpRequestMessage
+            {
+                Method = HttpMethod.Get,
+                RequestUri = new Uri("https://apidojo-yahoo-finance-v1.p.rapidapi.com/market/get-trending-tickers?region=US"),
+                Headers =
+                    {
+                        { "x-rapidapi-key", "59cd2485cemshf72578d1ef3ac2ap106076jsncc6280cf1332" },
+                        { "x-rapidapi-host", "apidojo-yahoo-finance-v1.p.rapidapi.com" },
+                    },
+            };
+
+            using (var response = await client.SendAsync(request))
+            {
+                response.EnsureSuccessStatusCode();
+                var body = await response.Content.ReadAsStringAsync();
+                Root financije = JSONSerializerWrapper.Deserialize<Root>(body); //Convertovanje JSona u C#
+                foreach (var item in financije.finance.result)
+                {
+                    foreach (var x in item.quotes)
+                    {
+                        //Dohvatanje detaljnih podataka za iste
                         var client2 = new HttpClient();
                         var request2 = new HttpRequestMessage
                         {
                             Method = HttpMethod.Get,
-                            RequestUri = new Uri("https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-summary?symbol=AMRN&region=US"),
+                            RequestUri = new Uri(@"https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-summary?symbol=" + x.symbol + "&region=US"),
                             Headers =
-            {
-                { "x-rapidapi-key", "59cd2485cemshf72578d1ef3ac2ap106076jsncc6280cf1332" },
-                { "x-rapidapi-host", "apidojo-yahoo-finance-v1.p.rapidapi.com" },
-            },
+    {
+        { "x-rapidapi-key", "59cd2485cemshf72578d1ef3ac2ap106076jsncc6280cf1332" },
+        { "x-rapidapi-host", "apidojo-yahoo-finance-v1.p.rapidapi.com" },
+    },
                         };
-
-                        System.Threading.Thread.Sleep(1000);   //Pauza za zahtjev od 1 sekunde
-
-                        using (var response2 = await client.SendAsync(request2))
+                        System.Threading.Thread.Sleep(1000);
+                        using (var response2 = await client2.SendAsync(request2))
                         {
                             response2.EnsureSuccessStatusCode();
                             var details = await response2.Content.ReadAsStringAsync();
                             Root2 financije2 = JSONSerializerWrapper.Deserialize<Root2>(details);
-                            podaci[i].City = financije2.summaryProfile.city;
-                            podaci[i].State = financije2.summaryProfile.country;
-                            podaci[i].numberOfEmployees = financije2.summaryProfile.fullTimeEmployees;
-                            podaci[i].MarketCap = financije2.price.marketCap.longFmt;
+                            //Pohrana u bazu podataka
+                            if (financije2.summaryProfile != null && financije2.price != null)
+                            {
+                                StorageDB s = new StorageDB()
+                                {
+                                    symbol = x.symbol,
+                                    CompanyName = x.shortName,
+                                    numberOfEmployees = financije2.summaryProfile.fullTimeEmployees,
+                                    City = financije2.summaryProfile.city,
+                                    State = financije2.summaryProfile.country,
+                                    MarketCap = financije2.price.marketCap.longFmt
+                                };
+                                _db.StorageDB.Add(s);
+                                _db.SaveChanges();
+                            }
                         }
                     }
-
-                    //Pohrana u bazu podataka
-                    for (int i = 0; i < podaci.Count; i++)
-                    {
-                        StorageDB s = new StorageDB
-                        {
-                            symbol = podaci[i].symbol,
-                            CompanyName = podaci[i].CompanyName,
-                            numberOfEmployees = podaci[i].numberOfEmployees,
-                            City = podaci[i].City,
-                            State = podaci[i].State,
-                            OpenPrice = podaci[i].OpenPrice,
-                            ClosePrice = podaci[i].ClosePrice,
-                            MarketCap = podaci[i].MarketCap,
-                            Datum = podaci[i].Datum
-                        };
-
-                        _db.StorageDB.Add(s);
-                        _db.SaveChanges();
-                    }
-
-                    //Dohvatanje podataka iz baze podataka
-                    StorageVM model = new StorageVM();
-
-                    model.podaci = _db.StorageDB
-                        .Where(i=>i.Datum.Year==datum.Year && i.Datum.Month==datum.Month && i.Datum.Day==datum.Day)
-                  .Select(n => new StorageVM.Rows
-                  {
-                      symbol = n.symbol,
-                      CompanyName = n.CompanyName,
-                      numberOfEmployees = n.numberOfEmployees,
-                      City = n.City,
-                      State = n.State,
-                      OpenPrice = n.OpenPrice,
-                      ClosePrice = n.ClosePrice,
-                      MarketCap = n.MarketCap,
-                      Datum = n.Datum
-                  })
-                  .ToList();
-                    return View(model);
-
-
                 }
-
-                return View();
-
-
+               
+          
+                throw new NotImplementedException();
             }
-
         }
     }
 }

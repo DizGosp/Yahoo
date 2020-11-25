@@ -19,5 +19,6 @@ namespace Yahoo.EF
         }
 
         public DbSet<StorageDB> StorageDB { get; set; }
+        public DbSet<FinanceStorageDB> FinanceStorageDB { get; set; }
     }
 }

@@ -14,9 +14,6 @@ namespace Yahoo.Models
         public int numberOfEmployees { get; set; }
         public string City { get; set; }
         public string State { get; set; }
-        public decimal OpenPrice { get; set; }
-        public decimal ClosePrice { get; set; }
         public string MarketCap { get; set; }
-        public DateTime Datum { get; set; }
     }
 }
