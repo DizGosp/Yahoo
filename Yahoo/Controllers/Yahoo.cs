@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
@@ -30,7 +31,45 @@ namespace Yahoo.Controllers
         {
             if (!_db.StorageDB.Any())
             {
-                await geListTickersAsync();
+               // await geListTickersAsync();
+                var comp = ProcessCSV("constituents.csv");
+                foreach (var item in comp)
+                {
+                    //Dohvatanje detaljnih podataka za iste
+                    var client2 = new HttpClient();
+                    var request2 = new HttpRequestMessage
+                    {
+                        Method = HttpMethod.Get,
+                        RequestUri = new Uri(@"https://apidojo-yahoo-finance-v1.p.rapidapi.com/stock/v2/get-summary?symbol=" + item.Symbol + "&region=US"),
+                        Headers =
+    {
+        { "x-rapidapi-key", "59cd2485cemshf72578d1ef3ac2ap106076jsncc6280cf1332" },
+        { "x-rapidapi-host", "apidojo-yahoo-finance-v1.p.rapidapi.com" },
+    },
+                    };
+                    System.Threading.Thread.Sleep(1000);
+                    using (var response2 = await client2.SendAsync(request2))
+                    {
+                        response2.EnsureSuccessStatusCode();
+                        var details = await response2.Content.ReadAsStringAsync();
+                        Root2 financije2 = JSONSerializerWrapper.Deserialize<Root2>(details);
+                        //Pohrana u bazu podataka
+                        if (financije2.summaryProfile != null && financije2.price != null)
+                        {
+                            StorageDB s = new StorageDB()
+                            {
+                                symbol = item.Symbol,
+                                CompanyName = item.Name,
+                                numberOfEmployees = financije2.summaryProfile.fullTimeEmployees,
+                                City = financije2.summaryProfile.city,
+                                State = financije2.summaryProfile.country,
+                                MarketCap = financije2.price.marketCap.longFmt
+                            };
+                            _db.StorageDB.Add(s);
+                            _db.SaveChanges();
+                        }
+                    }
+                }
             }
 
             List<Storage> podaci = new List<Storage>();
@@ -97,6 +136,17 @@ namespace Yahoo.Controllers
             return View(model);
         }
 
+       
+        private static List<Company> ProcessCSV(string path)
+        {
+            
+            return System.IO.File.ReadAllLines(path)
+                .Skip(1)
+                .Where(row => row.Length > 0)
+                .Select(Company.ParseRow)
+                .OrderBy(i => i.Symbol)
+                .ToList();
+        }
         private async Task geListTickersAsync()
         {
             //Dohvatanje liste symbola i kompanija u EU regiji
@@ -162,5 +212,8 @@ namespace Yahoo.Controllers
                 throw new NotImplementedException();
             }
         }
+
+
+
     }
 }
